@@ -7,6 +7,27 @@ function cleanList(items: string[]): string[] {
   return items.map((i) => i.trim()).filter(Boolean);
 }
 
+// Garantiza que todos los campos existan (registros antiguos pueden no tener
+// algunos campos nuevos como seccionesPersonalizadas).
+function normalizeAnalysis(a: Partial<CallAnalysis> | null | undefined): CallAnalysis {
+  const x = a ?? {};
+  return {
+    resumen: x.resumen ?? "",
+    puntuacionGlobal: Number(x.puntuacionGlobal) || 0,
+    sentimientoCliente: x.sentimientoCliente ?? "",
+    resultadoProbable: x.resultadoProbable ?? "",
+    fortalezas: x.fortalezas ?? [],
+    debilidades: x.debilidades ?? [],
+    oportunidadesMejora: x.oportunidadesMejora ?? [],
+    fases: x.fases ?? [],
+    objecionesDetectadas: x.objecionesDetectadas ?? [],
+    frasesDestacadas: x.frasesDestacadas ?? [],
+    recomendacionesAccionables: x.recomendacionesAccionables ?? [],
+    proximaLlamada: x.proximaLlamada ?? [],
+    seccionesPersonalizadas: x.seccionesPersonalizadas ?? [],
+  };
+}
+
 function cleanAnalysis(a: CallAnalysis): CallAnalysis {
   return {
     ...a,
@@ -65,7 +86,9 @@ export default function AnalysisEditor({
   callId,
 }: Props) {
   const [title, setTitle] = useState(initialTitle);
-  const [a, setA] = useState<CallAnalysis>(initialAnalysis);
+  const [a, setA] = useState<CallAnalysis>(() =>
+    normalizeAnalysis(initialAnalysis)
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [notice, setNotice] = useState("");

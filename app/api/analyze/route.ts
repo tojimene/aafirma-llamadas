@@ -4,8 +4,8 @@ import { analyzeCall } from "@/lib/analysis";
 import { getServiceClient } from "@/lib/supabase";
 
 export const runtime = "nodejs";
-// Vercel: Hobby admite hasta 60s; Pro hasta 300s. Sube este valor si usas Pro.
-export const maxDuration = 60;
+// Vercel Pro admite hasta 300s. (Hobby está limitado a 60s.)
+export const maxDuration = 300;
 
 // Devuelve un stream NDJSON con eventos de progreso y, al final, el resultado.
 // Cada línea es un objeto JSON: {stage,pct,message} | {done,id,analysis} | {error}
