@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import AnalysisResult from "@/components/AnalysisResult";
+import AnalysisEditor from "@/components/AnalysisEditor";
 import { getServiceClient } from "@/lib/supabase";
 import type { CallAnalysis } from "@/lib/analysis";
 
@@ -41,25 +41,21 @@ export default async function CallDetailPage({
         ← Volver al historial
       </Link>
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-serif text-2xl text-foreground">{call.title}</h1>
-          <p className="mt-1 text-xs text-muted">
-            {new Date(call.created_at).toLocaleString("es-ES", {
-              dateStyle: "long",
-              timeStyle: "short",
-            })}
-          </p>
-        </div>
-        <a
-          href={`/api/report/${call.id}`}
-          className="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-background transition hover:opacity-90"
-        >
-          ↓ Descargar informe Word
-        </a>
+      <div className="mb-6">
+        <h1 className="font-serif text-2xl text-foreground">{call.title}</h1>
+        <p className="mt-1 text-xs text-muted">
+          {new Date(call.created_at).toLocaleString("es-ES", {
+            dateStyle: "long",
+            timeStyle: "short",
+          })}
+        </p>
       </div>
 
-      <AnalysisResult analysis={analysis} />
+      <AnalysisEditor
+        initialAnalysis={analysis}
+        initialTitle={call.title}
+        callId={call.id}
+      />
     </div>
   );
 }

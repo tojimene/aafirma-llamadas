@@ -118,17 +118,53 @@ function safeParse(raw: string): CallAnalysis {
   };
 }
 
+export type ProgressStage =
+  | "recuperando"
+  | "plantilla"
+  | "analizando"
+  | "procesando";
+
+export type ProgressEvent = {
+  stage: ProgressStage;
+  pct: number;
+  message: string;
+};
+
+type OnProgress = (e: ProgressEvent) => void | Promise<void>;
+
 // Ejecuta el análisis completo de una transcripción usando RAG + LLM.
-export async function analyzeCall(transcript: string): Promise<{
+// Acepta un callback opcional para reportar el progreso por fases.
+export async function analyzeCall(
+  transcript: string,
+  onProgress?: OnProgress
+): Promise<{
   analysis: CallAnalysis;
   referencesUsed: { title: string; category: string; similarity: number }[];
 }> {
-  const [matches, template] = await Promise.all([
-    retrieveKnowledge(transcript.slice(0, 6000)),
-    getActiveReportTemplate(),
-  ]);
+  const emit = async (e: ProgressEvent) => {
+    if (onProgress) await onProgress(e);
+  };
+
+  await emit({
+    stage: "recuperando",
+    pct: 15,
+    message: "Recuperando material de la base de conocimiento…",
+  });
+  const matches = await retrieveKnowledge(transcript.slice(0, 6000));
+
+  await emit({
+    stage: "plantilla",
+    pct: 30,
+    message: "Cargando la estructura del informe…",
+  });
+  const template = await getActiveReportTemplate();
   const context = buildContextBlock(matches);
 
+  await emit({
+    stage: "analizando",
+    pct: 45,
+    message: "Analizando la llamada con IA (esto es lo que más tarda)…",
+  });
   const raw = await chatComplete({
     system: SYSTEM_PROMPT,
     user: buildUserPrompt(transcript, context, template?.content ?? null),
@@ -136,6 +172,11 @@ export async function analyzeCall(transcript: string): Promise<{
     jsonMode: true,
   });
 
+  await emit({
+    stage: "procesando",
+    pct: 85,
+    message: "Procesando el resultado…",
+  });
   const analysis = safeParse(raw);
 
   return {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import DeleteCallButton from "@/components/DeleteCallButton";
 import { getServiceClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -37,10 +38,13 @@ export default async function HistorialPage() {
         <div className="overflow-hidden rounded-xl border border-border bg-surface">
           <ul className="divide-y divide-border">
             {calls.map((call) => (
-              <li key={call.id}>
+              <li
+                key={call.id}
+                className="flex items-center gap-3 px-5 py-4 transition hover:bg-surface-2"
+              >
                 <Link
                   href={`/historial/${call.id}`}
-                  className="flex items-center justify-between px-5 py-4 transition hover:bg-surface-2"
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm text-foreground">
@@ -54,11 +58,12 @@ export default async function HistorialPage() {
                     </p>
                   </div>
                   {typeof call.score === "number" && (
-                    <span className="ml-4 shrink-0 rounded-full bg-accent-soft px-3 py-1 text-sm font-medium text-accent">
+                    <span className="shrink-0 rounded-full bg-accent-soft px-3 py-1 text-sm font-medium text-accent">
                       {call.score}/100
                     </span>
                   )}
                 </Link>
+                <DeleteCallButton callId={call.id} title={call.title} />
               </li>
             ))}
           </ul>
