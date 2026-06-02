@@ -63,6 +63,11 @@ Reglas:
 - Sé concreto y cita momentos/frases reales de la llamada para justificar cada punto.
 - No inventes datos que no estén en la transcripción.
 - Prioriza calidad sobre cantidad: pocas observaciones, pero las que más impactan.
+- ESCRIBE PARA LECTURA RÁPIDA: frases cortas y directas. NADA de párrafos largos.
+  Cada elemento de lista, máximo 1-2 frases. Cada campo "porque", "accion",
+  "manejoActual", "rebateRecomendado", "oportunidad" debe ser conciso (1-2 frases).
+  Para "seccionesPersonalizadas", usa frases cortas o viñetas separadas por saltos
+  de línea, nunca un bloque denso.
 - La puntuación global va de 0 a 100.
 - Escribe en español neutro y profesional.
 - Devuelve EXCLUSIVAMENTE un objeto JSON válido con el esquema indicado, sin texto adicional.`;

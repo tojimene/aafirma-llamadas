@@ -2,46 +2,151 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
-  HeadingLevel,
   Packer,
   Paragraph,
+  ShadingType,
+  Table,
+  TableCell,
+  TableLayoutType,
+  TableRow,
   TextRun,
+  WidthType,
 } from "docx";
 import { CallAnalysis } from "./analysis";
 
+// Ancho útil de la página (A4, márgenes ~1000 dxa a cada lado).
+const CONTENT_WIDTH = 9700;
+
+// Paleta (branding AA Firma)
 const ACCENT = "C9A66B";
 const DARK = "1A1A1A";
+const WHITE = "FFFFFF";
 const MUTED = "6B6B6B";
+const CARD_BG = "F7F5F0";
+const ACCENT_BG = "F1E7CF";
+const BORDER = "E4E0D6";
+const RED = "B23A2E";
+const RED_BG = "FBEAE7";
+const GREEN = "2E7D52";
+const GREEN_BG = "E9F5EE";
 
-function heading(text: string): Paragraph {
-  return new Paragraph({
-    spacing: { before: 280, after: 120 },
-    border: { bottom: { color: ACCENT, size: 6, style: BorderStyle.SINGLE, space: 4 } },
-    children: [
-      new TextRun({ text: text.toUpperCase(), bold: true, size: 26, color: DARK }),
+type Block = Paragraph | Table;
+
+function scoreColor(score: number): string {
+  if (score >= 75) return GREEN;
+  if (score >= 50) return ACCENT;
+  return RED;
+}
+
+// Barra de sección: tabla con celda oscura, texto blanco y filo dorado.
+// (Se usa tabla y no párrafo porque el sombreado de celda se renderiza mejor.)
+function sectionBar(title: string): Table {
+  return new Table({
+    width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+    columnWidths: [CONTENT_WIDTH],
+    layout: TableLayoutType.FIXED,
+    borders: {
+      ...noBorders,
+      left: { style: BorderStyle.SINGLE, size: 28, color: ACCENT },
+    },
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, color: "auto", fill: DARK },
+            margins: { top: 90, bottom: 90, left: 200, right: 160 },
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: title.toUpperCase(),
+                    bold: true,
+                    size: 21,
+                    color: WHITE,
+                    characterSpacing: 18,
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
     ],
   });
 }
 
-function bullet(text: string): Paragraph {
+// Añade una barra de sección con un pequeño espacio previo.
+function pushSection(children: Block[], title: string) {
+  children.push(spacer(160));
+  children.push(sectionBar(title));
+  children.push(spacer(60));
+}
+
+function line(
+  label: string,
+  value: string,
+  labelColor = ACCENT,
+  valueColor = DARK
+): Paragraph {
+  return new Paragraph({
+    spacing: { after: 60 },
+    children: [
+      new TextRun({ text: `${label} `, bold: true, size: 19, color: labelColor }),
+      new TextRun({ text: value || "—", size: 19, color: valueColor }),
+    ],
+  });
+}
+
+function bullet(text: string, color = DARK): Paragraph {
   return new Paragraph({
     bullet: { level: 0 },
+    spacing: { after: 50 },
+    children: [new TextRun({ text, size: 19, color })],
+  });
+}
+
+function spacer(size = 80): Paragraph {
+  return new Paragraph({ spacing: { after: size }, children: [] });
+}
+
+function emptyNote(): Paragraph {
+  return new Paragraph({
     spacing: { after: 60 },
-    children: [new TextRun({ text, size: 22, color: DARK })],
+    children: [
+      new TextRun({ text: "— Sin elementos —", italics: true, size: 18, color: MUTED }),
+    ],
   });
 }
 
-function body(text: string): Paragraph {
-  return new Paragraph({
-    spacing: { after: 120 },
-    children: [new TextRun({ text, size: 22, color: DARK })],
-  });
-}
+const noBorders = {
+  top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+  bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+  left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+  right: { style: BorderStyle.NONE, size: 0, color: "auto" },
+  insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "auto" },
+  insideVertical: { style: BorderStyle.NONE, size: 0, color: "auto" },
+};
 
-function emptyState(): Paragraph {
-  return new Paragraph({
-    spacing: { after: 120 },
-    children: [new TextRun({ text: "— Sin elementos —", italics: true, size: 20, color: MUTED })],
+// Tarjeta: tabla de una celda con fondo y padding.
+function card(children: Paragraph[], fill = CARD_BG): Table {
+  return new Table({
+    width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+    columnWidths: [CONTENT_WIDTH],
+    layout: TableLayoutType.FIXED,
+    borders: noBorders,
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+            shading: { type: ShadingType.CLEAR, color: "auto", fill },
+            margins: { top: 140, bottom: 140, left: 200, right: 200 },
+            children,
+          }),
+        ],
+      }),
+    ],
   });
 }
 
@@ -51,7 +156,7 @@ type ReportMeta = {
   date: Date;
 };
 
-// Genera el informe .docx a partir del análisis. Devuelve un Buffer.
+// Genera el informe .docx visual a partir del análisis. Devuelve un Buffer.
 export async function buildReportDocx(
   analysis: CallAnalysis,
   meta: ReportMeta
@@ -61,162 +166,274 @@ export async function buildReportDocx(
     timeStyle: "short",
   });
 
-  const children: Paragraph[] = [
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 40 },
-      children: [
-        new TextRun({ text: "ALVARADO ABREU FIRMA & CO.", bold: true, size: 20, color: MUTED, characterSpacing: 40 }),
-      ],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      heading: HeadingLevel.TITLE,
-      spacing: { after: 80 },
-      children: [
-        new TextRun({ text: "Informe de Análisis de Llamada", bold: true, size: 44, color: DARK }),
-      ],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 40 },
-      children: [new TextRun({ text: meta.title, size: 24, color: ACCENT, bold: true })],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 240 },
-      children: [
-        new TextRun({
-          text: `${fechaStr}${meta.analystName ? ` · Analista: ${meta.analystName}` : ""}`,
-          size: 18,
-          color: MUTED,
-        }),
-      ],
-    }),
+  const children: Block[] = [];
 
-    // Puntuación global destacada
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 80 },
-      children: [
-        new TextRun({ text: `${analysis.puntuacionGlobal}`, bold: true, size: 72, color: ACCENT }),
-        new TextRun({ text: " / 100", size: 28, color: MUTED }),
-      ],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 240 },
-      children: [
-        new TextRun({ text: `Resultado probable: ${analysis.resultadoProbable}`, size: 20, color: DARK }),
-      ],
-    }),
-
-    heading("Resumen"),
-    body(analysis.resumen || "—"),
-  ];
-
-  const listSection = (title: string, items: string[]) => {
-    children.push(heading(title));
-    if (items.length) items.forEach((i) => children.push(bullet(i)));
-    else children.push(emptyState());
-  };
-
-  // Prioridades 80/20
-  children.push(heading("Prioridades 80/20 · lo que más mejora la llamada"));
-  if (analysis.prioridades.length) {
-    analysis.prioridades.forEach((p, i) => {
-      children.push(
-        new Paragraph({
-          spacing: { before: 100, after: 20 },
-          children: [
-            new TextRun({ text: `${i + 1}. ${p.titulo}`, bold: true, size: 23, color: DARK }),
-          ],
-        })
-      );
-      if (p.porque) children.push(body(`Por qué: ${p.porque}`));
-      if (p.accion) children.push(body(`Acción: ${p.accion}`));
-    });
-  } else {
-    children.push(emptyState());
-  }
-
-  // Errores por fase
-  listSection("Errores en el sondeo", analysis.erroresSondeo);
-  listSection("Errores en el pitch", analysis.erroresPitch);
-  listSection("Errores en el debate de objeciones", analysis.erroresObjeciones);
-
-  // Rebate de objeciones
-  children.push(heading("Rebate de objeciones"));
-  if (analysis.rebateObjeciones.length) {
-    analysis.rebateObjeciones.forEach((o) => {
-      children.push(
-        new Paragraph({
-          spacing: { before: 100, after: 20 },
-          children: [
-            new TextRun({ text: `Objeción: ${o.objecion}`, bold: true, size: 22, color: DARK }),
-          ],
-        })
-      );
-      if (o.manejoActual) children.push(body(`Cómo se manejó: ${o.manejoActual}`));
-      if (o.rebateRecomendado)
-        children.push(body(`Rebate recomendado: ${o.rebateRecomendado}`));
-    });
-  } else {
-    children.push(emptyState());
-  }
-
-  // Red flags
-  children.push(heading("Red flags · oportunidades de mejora"));
-  if (analysis.redFlags.length) {
-    analysis.redFlags.forEach((r) => {
-      children.push(
-        new Paragraph({
-          spacing: { before: 80, after: 10 },
-          children: [
-            new TextRun({ text: `⚑ ${r.flag}`, bold: true, size: 22, color: DARK }),
-          ],
-        })
-      );
-      if (r.oportunidad) children.push(body(`Oportunidad: ${r.oportunidad}`));
-    });
-  } else {
-    children.push(emptyState());
-  }
-
-  // Secciones según la estructura del informe definida por la firma.
-  if (analysis.seccionesPersonalizadas?.length) {
-    children.push(
-      new Paragraph({
-        spacing: { before: 360, after: 80 },
-        alignment: AlignmentType.CENTER,
-        children: [
-          new TextRun({
-            text: "INFORME SEGÚN ESTRUCTURA DE LA FIRMA",
-            bold: true,
-            size: 22,
-            color: ACCENT,
-            characterSpacing: 30,
-          }),
-        ],
-      })
-    );
-    analysis.seccionesPersonalizadas.forEach((s) => {
-      children.push(heading(s.titulo));
-      // Respetar saltos de línea del contenido generado.
-      s.contenido.split(/\n+/).forEach((para) => {
-        if (para.trim()) children.push(body(para.trim()));
-      });
-    });
-  }
-
+  // ---- Cabecera ----
   children.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { before: 400 },
+      spacing: { after: 30 },
+      children: [
+        new TextRun({
+          text: "ALVARADO ABREU FIRMA & CO.",
+          bold: true,
+          size: 18,
+          color: MUTED,
+          characterSpacing: 40,
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 60 },
+      children: [
+        new TextRun({
+          text: "Informe de Análisis de Llamada",
+          bold: true,
+          size: 40,
+          color: DARK,
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 20 },
+      children: [
+        new TextRun({ text: meta.title, size: 22, color: ACCENT, bold: true }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 220 },
+      children: [
+        new TextRun({
+          text: `${fechaStr}${meta.analystName ? ` · ${meta.analystName}` : ""}`,
+          size: 17,
+          color: MUTED,
+        }),
+      ],
+    })
+  );
+
+  // ---- Cabecera con puntuación (tabla 2 columnas) ----
+  children.push(
+    new Table({
+      width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+      layout: TableLayoutType.FIXED,
+      borders: noBorders,
+      columnWidths: [3100, 6600],
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 3100, type: WidthType.DXA },
+              shading: { type: ShadingType.CLEAR, color: "auto", fill: DARK },
+              margins: { top: 200, bottom: 200, left: 160, right: 160 },
+              verticalAlign: "center",
+              children: [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({
+                      text: `${analysis.puntuacionGlobal}`,
+                      bold: true,
+                      size: 64,
+                      color: scoreColor(analysis.puntuacionGlobal),
+                    }),
+                    new TextRun({ text: " /100", size: 22, color: WHITE }),
+                  ],
+                }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({
+                      text: "PUNTUACIÓN",
+                      size: 15,
+                      color: "BFBFBF",
+                      characterSpacing: 30,
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            new TableCell({
+              width: { size: 6600, type: WidthType.DXA },
+              shading: { type: ShadingType.CLEAR, color: "auto", fill: CARD_BG },
+              margins: { top: 200, bottom: 200, left: 200, right: 200 },
+              verticalAlign: "center",
+              children: [
+                line("Resultado probable:", analysis.resultadoProbable),
+                new Paragraph({
+                  spacing: { before: 40 },
+                  children: [
+                    new TextRun({ text: analysis.resumen || "—", size: 19, color: DARK }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    })
+  );
+
+  // ---- Prioridades 80/20 ----
+  pushSection(children, "Prioridades 80/20 · lo que más mejora la llamada");
+  if (analysis.prioridades.length) {
+    analysis.prioridades.forEach((p, i) => {
+      children.push(
+        card([
+          new Paragraph({
+            spacing: { after: 60 },
+            children: [
+              new TextRun({
+                text: `${i + 1}. ${p.titulo}`,
+                bold: true,
+                size: 22,
+                color: DARK,
+              }),
+            ],
+          }),
+          line("Por qué:", p.porque),
+          line("Acción:", p.accion, GREEN),
+        ], ACCENT_BG)
+      );
+      children.push(spacer());
+    });
+  } else {
+    children.push(emptyNote());
+  }
+
+  // ---- Errores por fase (3 columnas) ----
+  pushSection(children, "Errores por fase");
+  const phaseCell = (titulo: string, items: string[]) =>
+    new TableCell({
+      width: { size: 3233, type: WidthType.DXA },
+      shading: { type: ShadingType.CLEAR, color: "auto", fill: CARD_BG },
+      margins: { top: 140, bottom: 140, left: 140, right: 140 },
+      children: [
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({ text: titulo.toUpperCase(), bold: true, size: 17, color: ACCENT, characterSpacing: 14 }),
+          ],
+        }),
+        ...(items.length
+          ? items.map((t) => bullet(t))
+          : [emptyNote()]),
+      ],
+    });
+
+  children.push(
+    new Table({
+      width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+      layout: TableLayoutType.FIXED,
+      columnWidths: [3233, 3233, 3234],
+      borders: {
+        ...noBorders,
+        insideVertical: { style: BorderStyle.SINGLE, size: 12, color: WHITE },
+      },
+      rows: [
+        new TableRow({
+          children: [
+            phaseCell("Sondeo", analysis.erroresSondeo),
+            phaseCell("Pitch", analysis.erroresPitch),
+            phaseCell("Objeciones", analysis.erroresObjeciones),
+          ],
+        }),
+      ],
+    })
+  );
+
+  // ---- Rebate de objeciones ----
+  pushSection(children, "Rebate de objeciones");
+  if (analysis.rebateObjeciones.length) {
+    analysis.rebateObjeciones.forEach((o) => {
+      children.push(
+        card([
+          new Paragraph({
+            spacing: { after: 60 },
+            children: [
+              new TextRun({ text: "Objeción: ", bold: true, size: 19, color: DARK }),
+              new TextRun({ text: o.objecion, size: 19, color: DARK, italics: true }),
+            ],
+          }),
+          line("✗ Cómo se manejó:", o.manejoActual, RED, MUTED),
+          line("✓ Rebate recomendado:", o.rebateRecomendado, GREEN, DARK),
+        ])
+      );
+      children.push(spacer());
+    });
+  } else {
+    children.push(emptyNote());
+  }
+
+  // ---- Red flags ----
+  pushSection(children, "Red flags · oportunidades de mejora");
+  if (analysis.redFlags.length) {
+    analysis.redFlags.forEach((r) => {
+      children.push(
+        card(
+          [
+            new Paragraph({
+              spacing: { after: 40 },
+              children: [
+                new TextRun({ text: "⚑ ", bold: true, size: 20, color: RED }),
+                new TextRun({ text: r.flag, bold: true, size: 19, color: RED }),
+              ],
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: "→ ", size: 18, color: MUTED }),
+                new TextRun({ text: r.oportunidad, size: 18, color: DARK }),
+              ],
+            }),
+          ],
+          RED_BG
+        )
+      );
+      children.push(spacer(60));
+    });
+  } else {
+    children.push(emptyNote());
+  }
+
+  // ---- Secciones según la estructura de la firma ----
+  if (analysis.seccionesPersonalizadas?.length) {
+    pushSection(children, "Informe según la estructura de la firma");
+    analysis.seccionesPersonalizadas.forEach((s) => {
+      const paras: Paragraph[] = [
+        new Paragraph({
+          spacing: { after: 60 },
+          children: [
+            new TextRun({ text: s.titulo, bold: true, size: 20, color: DARK }),
+          ],
+        }),
+      ];
+      s.contenido
+        .split(/\n+/)
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .forEach((l) => {
+          // Si parece una viñeta, la mostramos como tal.
+          const clean = l.replace(/^[-•*]\s*/, "");
+          paras.push(bullet(clean));
+        });
+      children.push(card(paras, GREEN_BG));
+      children.push(spacer());
+    });
+  }
+
+  // ---- Pie ----
+  children.push(
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 360 },
+      border: { top: { style: BorderStyle.SINGLE, size: 6, color: BORDER, space: 8 } },
       children: [
         new TextRun({
           text: "Documento generado automáticamente · Uso interno · Alvarado Abreu Firma & Co.",
-          size: 16,
+          size: 15,
           color: MUTED,
           italics: true,
         }),
@@ -229,7 +446,9 @@ export async function buildReportDocx(
     title: meta.title,
     sections: [
       {
-        properties: { page: { margin: { top: 1000, bottom: 1000, left: 1100, right: 1100 } } },
+        properties: {
+          page: { margin: { top: 900, bottom: 900, left: 1000, right: 1000 } },
+        },
         children,
       },
     ],
