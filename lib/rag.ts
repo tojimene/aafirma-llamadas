@@ -22,7 +22,7 @@ export async function retrieveKnowledge(
   const { data, error } = await supabase.rpc("match_knowledge", {
     query_embedding: queryEmbedding,
     match_count: topK,
-    min_similarity: 0.15,
+    min_similarity: 0.1,
   });
 
   if (error) {

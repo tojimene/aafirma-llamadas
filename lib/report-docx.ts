@@ -107,31 +107,13 @@ export async function buildReportDocx(
       alignment: AlignmentType.CENTER,
       spacing: { after: 240 },
       children: [
-        new TextRun({ text: `Sentimiento del cliente: ${analysis.sentimientoCliente}   ·   Resultado probable: ${analysis.resultadoProbable}`, size: 20, color: DARK }),
+        new TextRun({ text: `Resultado probable: ${analysis.resultadoProbable}`, size: 20, color: DARK }),
       ],
     }),
 
-    heading("Resumen ejecutivo"),
+    heading("Resumen"),
     body(analysis.resumen || "—"),
   ];
-
-  // Fases
-  children.push(heading("Evaluación por fases"));
-  if (analysis.fases.length) {
-    analysis.fases.forEach((f) => {
-      children.push(
-        new Paragraph({
-          spacing: { before: 80, after: 20 },
-          children: [
-            new TextRun({ text: `${f.fase} — ${f.puntuacion}/100`, bold: true, size: 22, color: DARK }),
-          ],
-        })
-      );
-      children.push(body(f.comentario));
-    });
-  } else {
-    children.push(emptyState());
-  }
 
   const listSection = (title: string, items: string[]) => {
     children.push(heading(title));
@@ -139,29 +121,67 @@ export async function buildReportDocx(
     else children.push(emptyState());
   };
 
-  listSection("Fortalezas", analysis.fortalezas);
-  listSection("Debilidades", analysis.debilidades);
-  listSection("Oportunidades de mejora", analysis.oportunidadesMejora);
-  listSection("Objeciones detectadas", analysis.objecionesDetectadas);
-
-  // Frases destacadas
-  children.push(heading("Frases destacadas"));
-  if (analysis.frasesDestacadas.length) {
-    analysis.frasesDestacadas.forEach((f) => {
+  // Prioridades 80/20
+  children.push(heading("Prioridades 80/20 · lo que más mejora la llamada"));
+  if (analysis.prioridades.length) {
+    analysis.prioridades.forEach((p, i) => {
       children.push(
         new Paragraph({
-          spacing: { before: 60, after: 10 },
-          children: [new TextRun({ text: `"${f.cita}"`, italics: true, size: 22, color: ACCENT })],
+          spacing: { before: 100, after: 20 },
+          children: [
+            new TextRun({ text: `${i + 1}. ${p.titulo}`, bold: true, size: 23, color: DARK }),
+          ],
         })
       );
-      children.push(body(f.comentario));
+      if (p.porque) children.push(body(`Por qué: ${p.porque}`));
+      if (p.accion) children.push(body(`Acción: ${p.accion}`));
     });
   } else {
     children.push(emptyState());
   }
 
-  listSection("Recomendaciones accionables", analysis.recomendacionesAccionables);
-  listSection("Preparación para la próxima llamada", analysis.proximaLlamada);
+  // Errores por fase
+  listSection("Errores en el sondeo", analysis.erroresSondeo);
+  listSection("Errores en el pitch", analysis.erroresPitch);
+  listSection("Errores en el debate de objeciones", analysis.erroresObjeciones);
+
+  // Rebate de objeciones
+  children.push(heading("Rebate de objeciones"));
+  if (analysis.rebateObjeciones.length) {
+    analysis.rebateObjeciones.forEach((o) => {
+      children.push(
+        new Paragraph({
+          spacing: { before: 100, after: 20 },
+          children: [
+            new TextRun({ text: `Objeción: ${o.objecion}`, bold: true, size: 22, color: DARK }),
+          ],
+        })
+      );
+      if (o.manejoActual) children.push(body(`Cómo se manejó: ${o.manejoActual}`));
+      if (o.rebateRecomendado)
+        children.push(body(`Rebate recomendado: ${o.rebateRecomendado}`));
+    });
+  } else {
+    children.push(emptyState());
+  }
+
+  // Red flags
+  children.push(heading("Red flags · oportunidades de mejora"));
+  if (analysis.redFlags.length) {
+    analysis.redFlags.forEach((r) => {
+      children.push(
+        new Paragraph({
+          spacing: { before: 80, after: 10 },
+          children: [
+            new TextRun({ text: `⚑ ${r.flag}`, bold: true, size: 22, color: DARK }),
+          ],
+        })
+      );
+      if (r.oportunidad) children.push(body(`Oportunidad: ${r.oportunidad}`));
+    });
+  } else {
+    children.push(emptyState());
+  }
 
   // Secciones según la estructura del informe definida por la firma.
   if (analysis.seccionesPersonalizadas?.length) {

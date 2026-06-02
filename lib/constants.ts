@@ -9,7 +9,7 @@ export const EMBEDDING_MODEL =
 export const EMBEDDING_DIM = 1536;
 
 // Cuántos fragmentos de conocimiento se recuperan por análisis (RAG).
-export const RAG_TOP_K = 6;
+export const RAG_TOP_K = 12;
 
 // Tamaño de los trozos de texto al indexar conocimiento.
 export const CHUNK_SIZE = 1200;
