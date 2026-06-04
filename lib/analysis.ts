@@ -10,6 +10,12 @@ export type CustomSection = {
   contenido: string;
 };
 
+// Punto de la línea de tiempo: qué ocurre en cada momento de la llamada.
+export type TimelineItem = {
+  momento: string; // mm:ss (o vacío si la transcripción no trae marcas de tiempo)
+  evento: string; // qué pasa en ese momento (1 frase)
+};
+
 // Hallazgo con localización temporal en la llamada.
 // momento: "mm:ss" si la transcripción trae marcas de tiempo; vacío si no.
 // cita: frase textual exacta de la transcripción para localizar el momento.
@@ -47,6 +53,8 @@ export type CallAnalysis = {
   resumen: string;
   puntuacionGlobal: number; // 0-100
   resultadoProbable: string;
+  // Recorrido cronológico de la llamada (qué pasa en cada minuto:segundo).
+  lineaTiempo: TimelineItem[];
   // 80/20: las 2-3 cosas más importantes para mejorar la llamada.
   prioridades: Prioridad[];
   // Señales de riesgo que son oportunidades de mejora.
@@ -78,10 +86,18 @@ MARCAS DE TIEMPO Y LOCALIZACIÓN (OBLIGATORIO):
 - Para CADA hallazgo (prioridad, error de fase, red flag y objeción) indica DÓNDE ocurre en la llamada.
 - Si la transcripción incluye marcas de tiempo (p.ej. [00:12], 00:12, 1:23, 12:34, "min 5"),
   copia en el campo "momento" el minuto:segundo EXACTO en formato mm:ss (o hh:mm:ss si la llamada es larga).
+  Usa la marca de tiempo MÁS CERCANA que aparezca justo antes de la frase citada.
 - Si la transcripción NO trae marcas de tiempo, deja "momento" como "" (cadena vacía).
 - En "cita" copia SIEMPRE la frase textual EXACTA de la transcripción donde ocurre el hallazgo
   (lo más corta posible pero suficiente para localizarla). Nunca la dejes vacía.
 - NUNCA inventes una marca de tiempo que no aparezca literalmente en la transcripción.
+
+LÍNEA DE TIEMPO (campo "lineaTiempo"):
+- Es un recorrido CRONOLÓGICO de la llamada para que el usuario sepa qué pasa en cada momento SIN tener que escucharla.
+- Si la transcripción trae marcas de tiempo, la línea de tiempo es OBLIGATORIA: recorre la llamada en orden,
+  con el mm:ss REAL de cada momento importante (saludo, sondeo, propuesta, precio, objeciones, cierre, etc.)
+  y una frase corta de qué ocurre. Incluye entre 5 y 12 hitos según la longitud de la llamada.
+- Si NO hay marcas de tiempo, deja "lineaTiempo" como [] (array vacío).
 
 Reglas:
 - Sé concreto y cita momentos/frases reales de la llamada para justificar cada punto.
@@ -128,6 +144,7 @@ RECUERDA: "momento" = mm:ss exacto si hay marcas de tiempo, si no "". "cita" = f
   "resumen": "string (2-3 frases: qué pasó y dónde se ganó o perdió la venta)",
   "puntuacionGlobal": number,
   "resultadoProbable": "string corto (p.ej. 'Alta probabilidad de cierre', 'Necesita seguimiento', 'Perdida')",
+  "lineaTiempo": [{"momento": "mm:ss real de la transcripción", "evento": "qué ocurre en ese momento (frase corta)"}],
   "prioridades": [{"titulo": "la mejora más importante", "porque": "por qué es lo que más impacta", "accion": "qué hacer exactamente la próxima vez", "momento": "mm:ss o ''", "cita": "frase textual exacta del momento clave"}],
   "redFlags": [{"flag": "señal de riesgo detectada en la llamada", "oportunidad": "cómo convertirla en mejora", "momento": "mm:ss o ''", "cita": "frase textual exacta"}],
   "erroresSondeo": [{"momento": "mm:ss o ''", "cita": "frase textual exacta donde ocurre", "detalle": "qué falló y por qué, en la fase de sondeo/descubrimiento"}],
@@ -181,6 +198,9 @@ function safeParse(raw: string): CallAnalysis {
     resumen: parsed.resumen ?? "",
     puntuacionGlobal: Number(parsed.puntuacionGlobal ?? 0),
     resultadoProbable: parsed.resultadoProbable ?? "No determinado",
+    lineaTiempo: asArray<Record<string, unknown>>(parsed.lineaTiempo)
+      .map((t) => ({ momento: str(t.momento), evento: str(t.evento) }))
+      .filter((t) => t.evento.trim()),
     prioridades: asArray<Record<string, unknown>>(parsed.prioridades)
       .filter((p) => p?.titulo)
       .map((p) => ({

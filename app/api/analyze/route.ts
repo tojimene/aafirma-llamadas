@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { analyzeCall } from "@/lib/analysis";
+import { indexCallLearning } from "@/lib/learning";
 import { getServiceClient } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -72,6 +73,19 @@ export async function POST(req: NextRequest) {
           .single();
 
         if (error) throw new Error(`Error al guardar en la base de datos: ${error.message}`);
+
+        // Aprendizaje continuo: la IA aprende de esta llamada para las siguientes.
+        send({
+          stage: "aprendiendo",
+          pct: 96,
+          message: "Aprendiendo de esta llamada para mejorar futuros análisis…",
+        });
+        await indexCallLearning({
+          callId: data.id,
+          title,
+          analysis,
+          createdBy: userId,
+        });
 
         send({
           done: true,

@@ -7,6 +7,7 @@ import type {
   Prioridad,
   RebateObjecion,
   RedFlag,
+  TimelineItem,
 } from "@/lib/analysis";
 
 const s = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
@@ -63,10 +64,17 @@ function normalizeAnalysis(
       cita: s(o.cita),
     };
   });
+  const lineaTiempo = (Array.isArray(x.lineaTiempo) ? x.lineaTiempo : []).map(
+    (t) => {
+      const o = (t ?? {}) as Record<string, unknown>;
+      return { momento: s(o.momento), evento: s(o.evento) };
+    }
+  );
   return {
     resumen: (x.resumen as string) ?? "",
     puntuacionGlobal: Number(x.puntuacionGlobal) || 0,
     resultadoProbable: (x.resultadoProbable as string) ?? "",
+    lineaTiempo,
     prioridades,
     redFlags,
     erroresSondeo: toHallazgos(x.erroresSondeo),
@@ -85,6 +93,7 @@ function cleanAnalysis(a: CallAnalysis): CallAnalysis {
   return {
     ...a,
     puntuacionGlobal: Math.min(100, Math.max(0, Number(a.puntuacionGlobal) || 0)),
+    lineaTiempo: a.lineaTiempo.filter((t) => t.evento?.trim()),
     erroresSondeo: cleanHallazgos(a.erroresSondeo),
     erroresPitch: cleanHallazgos(a.erroresPitch),
     erroresObjeciones: cleanHallazgos(a.erroresObjeciones),
@@ -356,6 +365,60 @@ export default function AnalysisEditor({
           rows={3}
           className={`${inputCls} resize-y leading-relaxed`}
         />
+      </div>
+
+      {/* Línea de tiempo */}
+      <div className={cardCls}>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <label className={labelCls}>Línea de tiempo</label>
+            <p className="text-[11px] text-muted">
+              Qué pasa en cada minuto:segundo de la llamada (si la transcripción
+              trae marcas de tiempo).
+            </p>
+          </div>
+          <button
+            onClick={() =>
+              addRow<TimelineItem>("lineaTiempo", { momento: "", evento: "" })
+            }
+            className="text-xs text-accent hover:underline"
+          >
+            + Añadir
+          </button>
+        </div>
+        {a.lineaTiempo.length === 0 && (
+          <p className="text-xs text-muted">
+            Sin línea de tiempo (la transcripción no incluía marcas de tiempo).
+          </p>
+        )}
+        <div className="space-y-2">
+          {a.lineaTiempo.map((t, i) => (
+            <div key={i} className="flex gap-2">
+              <input
+                value={t.momento}
+                placeholder="mm:ss"
+                onChange={(e) =>
+                  updateRow<TimelineItem>("lineaTiempo", i, { momento: e.target.value })
+                }
+                className={`${inputCls} w-24 text-center font-mono`}
+              />
+              <input
+                value={t.evento}
+                placeholder="Qué ocurre en ese momento"
+                onChange={(e) =>
+                  updateRow<TimelineItem>("lineaTiempo", i, { evento: e.target.value })
+                }
+                className={`${inputCls} flex-1`}
+              />
+              <button
+                onClick={() => removeRow("lineaTiempo", i)}
+                className="rounded-lg border border-border px-2 text-xs text-muted hover:text-danger"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* 80/20 Prioridades */}

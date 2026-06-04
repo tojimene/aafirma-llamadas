@@ -27,6 +27,10 @@ export type KnowledgeType = {
 // Tipo especial: define la estructura del documento final descargable.
 export const REPORT_TEMPLATE_TYPE = "estructura_informe";
 
+// Categoría interna: lecciones aprendidas de cada llamada analizada.
+// No es subible por el usuario; la genera el sistema automáticamente.
+export const LEARNING_CATEGORY = "aprendizaje";
+
 // Los tres tipos de material de la base de conocimiento.
 export const KNOWLEDGE_TYPES: KnowledgeType[] = [
   {

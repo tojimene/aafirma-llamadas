@@ -38,6 +38,8 @@ create table if not exists knowledge_sources (
 
 -- Migración para bases ya creadas:
 alter table knowledge_sources add column if not exists full_content text;
+-- Vincula los "aprendizajes" generados automáticamente con su llamada de origen.
+alter table knowledge_sources add column if not exists call_id uuid;
 
 -- ---------------------------------------------------------------------
 -- Fragmentos indexados con embeddings (RAG)
@@ -77,13 +79,31 @@ create table if not exists calls (
 
 create index if not exists calls_created_at_idx on calls(created_at desc);
 
+-- Clave foránea de los aprendizajes hacia su llamada (borra en cascada).
+create index if not exists knowledge_sources_call_id_idx
+  on knowledge_sources(call_id);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'knowledge_sources_call_id_fkey'
+  ) then
+    alter table knowledge_sources
+      add constraint knowledge_sources_call_id_fkey
+      foreign key (call_id) references calls(id) on delete cascade;
+  end if;
+end $$;
+
 -- ---------------------------------------------------------------------
 -- Función de búsqueda semántica sobre el conocimiento (RAG)
 -- ---------------------------------------------------------------------
+-- filter_category: si se indica, restringe a una categoría (modelos, SOPs,
+-- aprendizajes...). Si es null, busca en todo el conocimiento.
 create or replace function match_knowledge(
   query_embedding vector(1536),
   match_count int default 6,
-  min_similarity float default 0.15
+  min_similarity float default 0.15,
+  filter_category text default null
 )
 returns table (
   id uuid,
@@ -103,6 +123,7 @@ as $$
   from knowledge_chunks kc
   join knowledge_sources ks on ks.id = kc.source_id
   where kc.embedding is not null
+    and (filter_category is null or kc.category = filter_category)
     and 1 - (kc.embedding <=> query_embedding) > min_similarity
   order by kc.embedding <=> query_embedding
   limit match_count;

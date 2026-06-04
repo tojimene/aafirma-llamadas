@@ -112,6 +112,18 @@ const styles = StyleSheet.create({
     color: MUTED,
   },
   empty: { fontSize: 8.5, fontStyle: "italic", color: MUTED },
+  timelineRow: {
+    flexDirection: "row",
+    marginBottom: 3,
+    alignItems: "flex-start",
+  },
+  timelineTime: {
+    width: 48,
+    fontSize: 9,
+    fontWeight: "bold",
+    color: ACCENT,
+  },
+  timelineEvent: { flex: 1, fontSize: 9 },
 });
 
 const tsText = (m?: string) => (m && m.trim() ? `[${m.trim()}] ` : "");
@@ -200,6 +212,25 @@ function ReportDoc({
             <Text style={{ marginTop: 4 }}>{analysis.resumen || "\u2014"}</Text>
           </View>
         </View>
+
+        {/* Línea de tiempo */}
+        {analysis.lineaTiempo?.length ? (
+          <View>
+            <View style={styles.sectionBar}>
+              <Text style={styles.sectionText}>
+                LÍNEA DE TIEMPO · QUÉ PASA EN CADA MOMENTO
+              </Text>
+            </View>
+            <View style={styles.card}>
+              {analysis.lineaTiempo.map((t, i) => (
+                <View key={i} style={styles.timelineRow}>
+                  <Text style={styles.timelineTime}>{t.momento?.trim() || "\u2014"}</Text>
+                  <Text style={styles.timelineEvent}>{t.evento}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         {/* Prioridades 80/20 */}
         <View style={styles.sectionBar}>

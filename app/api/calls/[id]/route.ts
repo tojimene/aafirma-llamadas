@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { indexCallLearning } from "@/lib/learning";
 import { getServiceClient } from "@/lib/supabase";
 import type { CallAnalysis } from "@/lib/analysis";
 
@@ -38,10 +39,21 @@ export async function PATCH(
       .from("calls")
       .update(update)
       .eq("id", id)
-      .select("id")
+      .select("id, title")
       .single();
 
     if (error) throw error;
+
+    // Si se editó el análisis, reindexamos el aprendizaje de esta llamada.
+    if (body.analysis) {
+      await indexCallLearning({
+        callId: id,
+        title: (update.title as string) || data.title,
+        analysis: body.analysis as CallAnalysis,
+        createdBy: session.user.id,
+      });
+    }
+
     return NextResponse.json({ id: data.id });
   } catch (err) {
     console.error("calls PATCH:", err);

@@ -312,6 +312,60 @@ export async function buildReportDocx(
     })
   );
 
+  // ---- Línea de tiempo ----
+  if (analysis.lineaTiempo?.length) {
+    pushSection(children, "Línea de tiempo · qué pasa en cada momento");
+    children.push(
+      new Table({
+        width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+        layout: TableLayoutType.FIXED,
+        columnWidths: [1300, 8400],
+        borders: {
+          ...noBorders,
+          insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: BORDER },
+        },
+        rows: analysis.lineaTiempo.map(
+          (t) =>
+            new TableRow({
+              children: [
+                new TableCell({
+                  width: { size: 1300, type: WidthType.DXA },
+                  shading: { type: ShadingType.CLEAR, color: "auto", fill: DARK },
+                  margins: { top: 80, bottom: 80, left: 100, right: 100 },
+                  verticalAlign: "center",
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [
+                        new TextRun({
+                          text: t.momento?.trim() || "—",
+                          bold: true,
+                          size: 18,
+                          color: ACCENT,
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+                new TableCell({
+                  width: { size: 8400, type: WidthType.DXA },
+                  margins: { top: 80, bottom: 80, left: 160, right: 160 },
+                  verticalAlign: "center",
+                  children: [
+                    new Paragraph({
+                      children: [
+                        new TextRun({ text: t.evento, size: 19, color: DARK }),
+                      ],
+                    }),
+                  ],
+                }),
+              ],
+            })
+        ),
+      })
+    );
+  }
+
   // ---- Prioridades 80/20 ----
   pushSection(children, "Prioridades 80/20 · lo que más mejora la llamada");
   if (analysis.prioridades.length) {
