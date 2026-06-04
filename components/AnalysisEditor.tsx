@@ -3,13 +3,26 @@
 import { useState } from "react";
 import type {
   CallAnalysis,
+  Hallazgo,
   Prioridad,
   RebateObjecion,
   RedFlag,
 } from "@/lib/analysis";
 
-function cleanList(items: string[]): string[] {
-  return items.map((i) => i.trim()).filter(Boolean);
+const s = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v));
+
+// Convierte datos antiguos (string[]) o nuevos a Hallazgo[].
+function toHallazgos(v: unknown): Hallazgo[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((item) => {
+    if (typeof item === "string") return { momento: "", cita: "", detalle: item };
+    const o = (item ?? {}) as Record<string, unknown>;
+    return {
+      momento: s(o.momento),
+      cita: s(o.cita),
+      detalle: s(o.detalle ?? o.descripcion ?? o.error),
+    };
+  });
 }
 
 // Garantiza que todos los campos existan (registros antiguos / esquema previo).
@@ -17,20 +30,49 @@ function normalizeAnalysis(
   a: Partial<CallAnalysis> | null | undefined
 ): CallAnalysis {
   const x = (a ?? {}) as Record<string, unknown>;
+  const prioridades = (Array.isArray(x.prioridades) ? x.prioridades : []).map(
+    (p) => {
+      const o = (p ?? {}) as Record<string, unknown>;
+      return {
+        titulo: s(o.titulo),
+        porque: s(o.porque),
+        accion: s(o.accion),
+        momento: s(o.momento),
+        cita: s(o.cita),
+      };
+    }
+  );
+  const redFlags = (Array.isArray(x.redFlags) ? x.redFlags : []).map((r) => {
+    const o = (r ?? {}) as Record<string, unknown>;
+    return {
+      flag: s(o.flag),
+      oportunidad: s(o.oportunidad),
+      momento: s(o.momento),
+      cita: s(o.cita),
+    };
+  });
+  const rebateObjeciones = (
+    Array.isArray(x.rebateObjeciones) ? x.rebateObjeciones : []
+  ).map((o2) => {
+    const o = (o2 ?? {}) as Record<string, unknown>;
+    return {
+      objecion: s(o.objecion),
+      manejoActual: s(o.manejoActual),
+      rebateRecomendado: s(o.rebateRecomendado),
+      momento: s(o.momento),
+      cita: s(o.cita),
+    };
+  });
   return {
     resumen: (x.resumen as string) ?? "",
     puntuacionGlobal: Number(x.puntuacionGlobal) || 0,
     resultadoProbable: (x.resultadoProbable as string) ?? "",
-    prioridades: Array.isArray(x.prioridades) ? (x.prioridades as Prioridad[]) : [],
-    redFlags: Array.isArray(x.redFlags) ? (x.redFlags as RedFlag[]) : [],
-    erroresSondeo: Array.isArray(x.erroresSondeo) ? (x.erroresSondeo as string[]) : [],
-    erroresPitch: Array.isArray(x.erroresPitch) ? (x.erroresPitch as string[]) : [],
-    erroresObjeciones: Array.isArray(x.erroresObjeciones)
-      ? (x.erroresObjeciones as string[])
-      : [],
-    rebateObjeciones: Array.isArray(x.rebateObjeciones)
-      ? (x.rebateObjeciones as RebateObjecion[])
-      : [],
+    prioridades,
+    redFlags,
+    erroresSondeo: toHallazgos(x.erroresSondeo),
+    erroresPitch: toHallazgos(x.erroresPitch),
+    erroresObjeciones: toHallazgos(x.erroresObjeciones),
+    rebateObjeciones,
     seccionesPersonalizadas: Array.isArray(x.seccionesPersonalizadas)
       ? (x.seccionesPersonalizadas as CallAnalysis["seccionesPersonalizadas"])
       : [],
@@ -38,17 +80,19 @@ function normalizeAnalysis(
 }
 
 function cleanAnalysis(a: CallAnalysis): CallAnalysis {
+  const cleanHallazgos = (items: Hallazgo[]) =>
+    items.filter((h) => h.detalle?.trim() || h.cita?.trim());
   return {
     ...a,
     puntuacionGlobal: Math.min(100, Math.max(0, Number(a.puntuacionGlobal) || 0)),
-    erroresSondeo: cleanList(a.erroresSondeo),
-    erroresPitch: cleanList(a.erroresPitch),
-    erroresObjeciones: cleanList(a.erroresObjeciones),
+    erroresSondeo: cleanHallazgos(a.erroresSondeo),
+    erroresPitch: cleanHallazgos(a.erroresPitch),
+    erroresObjeciones: cleanHallazgos(a.erroresObjeciones),
     prioridades: a.prioridades.filter((p) => p.titulo?.trim()),
     redFlags: a.redFlags.filter((r) => r.flag?.trim()),
     rebateObjeciones: a.rebateObjeciones.filter((o) => o.objecion?.trim()),
-    seccionesPersonalizadas: a.seccionesPersonalizadas.filter((s) =>
-      s.titulo?.trim()
+    seccionesPersonalizadas: a.seccionesPersonalizadas.filter((s2) =>
+      s2.titulo?.trim()
     ),
   };
 }
@@ -59,7 +103,38 @@ const inputCls =
   "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent";
 const cardCls = "rounded-xl border border-border bg-surface p-5";
 
-function ListField({
+// Inputs de momento (mm:ss) + cita textual, reutilizable.
+function MomentoCita({
+  momento,
+  cita,
+  onMomento,
+  onCita,
+}: {
+  momento: string;
+  cita: string;
+  onMomento: (v: string) => void;
+  onCita: (v: string) => void;
+}) {
+  return (
+    <div className="mt-2 grid gap-2 sm:grid-cols-[110px_1fr]">
+      <input
+        value={momento}
+        placeholder="mm:ss"
+        onChange={(e) => onMomento(e.target.value)}
+        className={`${inputCls} text-center font-mono`}
+      />
+      <input
+        value={cita}
+        placeholder="Cita textual de la llamada (para localizar el momento)"
+        onChange={(e) => onCita(e.target.value)}
+        className={`${inputCls} italic`}
+      />
+    </div>
+  );
+}
+
+// Editor de hallazgos por fase (momento + cita + detalle), con añadir/quitar.
+function HallazgoListField({
   label,
   hint,
   items,
@@ -67,19 +142,53 @@ function ListField({
 }: {
   label: string;
   hint?: string;
-  items: string[];
-  onChange: (next: string[]) => void;
+  items: Hallazgo[];
+  onChange: (next: Hallazgo[]) => void;
 }) {
+  const update = (i: number, patch: Partial<Hallazgo>) =>
+    onChange(items.map((h, j) => (j === i ? { ...h, ...patch } : h)));
+  const remove = (i: number) => onChange(items.filter((_, j) => j !== i));
+  const add = () => onChange([...items, { momento: "", cita: "", detalle: "" }]);
+
   return (
     <div className={cardCls}>
-      <label className={labelCls}>{label}</label>
-      <p className="mb-2 text-[11px] text-muted">{hint ?? "Un elemento por línea."}</p>
-      <textarea
-        value={items.join("\n")}
-        onChange={(e) => onChange(e.target.value.split("\n"))}
-        rows={Math.max(3, items.length + 1)}
-        className={`${inputCls} resize-y leading-relaxed`}
-      />
+      <div className="mb-2 flex items-center justify-between">
+        <label className={labelCls}>{label}</label>
+        <button onClick={add} className="text-xs text-accent hover:underline">
+          + Añadir
+        </button>
+      </div>
+      {hint && <p className="mb-2 text-[11px] text-muted">{hint}</p>}
+      {items.length === 0 && (
+        <p className="text-xs text-muted">Sin elementos.</p>
+      )}
+      <div className="space-y-3">
+        {items.map((h, i) => (
+          <div key={i} className="rounded-lg border border-border p-3">
+            <div className="flex gap-2">
+              <textarea
+                value={h.detalle}
+                placeholder="Qué falló y por qué"
+                onChange={(e) => update(i, { detalle: e.target.value })}
+                rows={2}
+                className={`${inputCls} flex-1 resize-y`}
+              />
+              <button
+                onClick={() => remove(i)}
+                className="rounded-lg border border-border px-2 text-xs text-muted hover:text-danger"
+              >
+                ✕
+              </button>
+            </div>
+            <MomentoCita
+              momento={h.momento}
+              cita={h.cita}
+              onMomento={(v) => update(i, { momento: v })}
+              onCita={(v) => update(i, { cita: v })}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -98,7 +207,7 @@ export default function AnalysisEditor({
   const [title, setTitle] = useState(initialTitle);
   const [a, setA] = useState<CallAnalysis>(() => normalizeAnalysis(initialAnalysis));
   const [isSaving, setIsSaving] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloading, setDownloading] = useState<"docx" | "pdf" | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -141,15 +250,15 @@ export default function AnalysisEditor({
     }
   }
 
-  async function handleDownload() {
+  async function handleDownload(format: "docx" | "pdf") {
     setError("");
     setNotice("");
-    setIsDownloading(true);
+    setDownloading(format);
     try {
       const res = await fetch("/api/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, analysis: cleanAnalysis(a) }),
+        body: JSON.stringify({ title, analysis: cleanAnalysis(a), format }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -159,7 +268,7 @@ export default function AnalysisEditor({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `informe-${title || "llamada"}.docx`;
+      link.download = `informe-${title || "llamada"}.${format}`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -167,7 +276,7 @@ export default function AnalysisEditor({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al descargar.");
     } finally {
-      setIsDownloading(false);
+      setDownloading(null);
     }
   }
 
@@ -191,11 +300,18 @@ export default function AnalysisEditor({
             </button>
           )}
           <button
-            onClick={handleDownload}
-            disabled={isDownloading}
+            onClick={() => handleDownload("pdf")}
+            disabled={downloading !== null}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-background transition hover:opacity-90 disabled:opacity-50"
           >
-            {isDownloading ? "Generando…" : "↓ Descargar informe Word"}
+            {downloading === "pdf" ? "Generando…" : "↓ PDF"}
+          </button>
+          <button
+            onClick={() => handleDownload("docx")}
+            disabled={downloading !== null}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent disabled:opacity-50"
+          >
+            {downloading === "docx" ? "Generando…" : "↓ Word"}
           </button>
         </div>
       </div>
@@ -255,7 +371,13 @@ export default function AnalysisEditor({
           </div>
           <button
             onClick={() =>
-              addRow<Prioridad>("prioridades", { titulo: "", porque: "", accion: "" })
+              addRow<Prioridad>("prioridades", {
+                titulo: "",
+                porque: "",
+                accion: "",
+                momento: "",
+                cita: "",
+              })
             }
             className="text-xs text-accent hover:underline"
           >
@@ -299,6 +421,12 @@ export default function AnalysisEditor({
                 rows={2}
                 className={`${inputCls} resize-y`}
               />
+              <MomentoCita
+                momento={p.momento}
+                cita={p.cita}
+                onMomento={(v) => updateRow<Prioridad>("prioridades", i, { momento: v })}
+                onCita={(v) => updateRow<Prioridad>("prioridades", i, { cita: v })}
+              />
             </div>
           ))}
         </div>
@@ -306,21 +434,21 @@ export default function AnalysisEditor({
 
       {/* Errores por fase */}
       <div className="grid gap-5 md:grid-cols-3">
-        <ListField
+        <HallazgoListField
           label="Errores en el sondeo"
-          hint="Descubrimiento de la situación."
+          hint="Con minuto:segundo y cita textual."
           items={a.erroresSondeo}
           onChange={(v) => set("erroresSondeo", v)}
         />
-        <ListField
+        <HallazgoListField
           label="Errores en el pitch"
-          hint="Presentación de la solución."
+          hint="Con minuto:segundo y cita textual."
           items={a.erroresPitch}
           onChange={(v) => set("erroresPitch", v)}
         />
-        <ListField
+        <HallazgoListField
           label="Errores en objeciones"
-          hint="Manejo y rebate."
+          hint="Con minuto:segundo y cita textual."
           items={a.erroresObjeciones}
           onChange={(v) => set("erroresObjeciones", v)}
         />
@@ -341,6 +469,8 @@ export default function AnalysisEditor({
                 objecion: "",
                 manejoActual: "",
                 rebateRecomendado: "",
+                momento: "",
+                cita: "",
               })
             }
             className="text-xs text-accent hover:underline"
@@ -391,6 +521,16 @@ export default function AnalysisEditor({
                 rows={2}
                 className={`${inputCls} resize-y`}
               />
+              <MomentoCita
+                momento={o.momento}
+                cita={o.cita}
+                onMomento={(v) =>
+                  updateRow<RebateObjecion>("rebateObjeciones", i, { momento: v })
+                }
+                onCita={(v) =>
+                  updateRow<RebateObjecion>("rebateObjeciones", i, { cita: v })
+                }
+              />
             </div>
           ))}
         </div>
@@ -401,7 +541,14 @@ export default function AnalysisEditor({
         <div className="mb-3 flex items-center justify-between">
           <label className={labelCls}>Red flags</label>
           <button
-            onClick={() => addRow<RedFlag>("redFlags", { flag: "", oportunidad: "" })}
+            onClick={() =>
+              addRow<RedFlag>("redFlags", {
+                flag: "",
+                oportunidad: "",
+                momento: "",
+                cita: "",
+              })
+            }
             className="text-xs text-accent hover:underline"
           >
             + Añadir
@@ -434,6 +581,12 @@ export default function AnalysisEditor({
                 }
                 rows={2}
                 className={`${inputCls} resize-y`}
+              />
+              <MomentoCita
+                momento={r.momento}
+                cita={r.cita}
+                onMomento={(v) => updateRow<RedFlag>("redFlags", i, { momento: v })}
+                onCita={(v) => updateRow<RedFlag>("redFlags", i, { cita: v })}
               />
             </div>
           ))}

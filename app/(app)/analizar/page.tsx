@@ -180,14 +180,6 @@ export default function AnalizarPage() {
               <label className="text-xs font-medium text-muted">
                 Transcripción
               </label>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isExtracting || isAnalyzing}
-                className="text-xs text-accent hover:underline disabled:opacity-50"
-              >
-                {isExtracting ? "Leyendo archivo…" : "+ Subir archivo"}
-              </button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -204,9 +196,17 @@ export default function AnalizarPage() {
               placeholder="Pega aquí la transcripción de la llamada…"
               className="w-full resize-y rounded-lg border border-border bg-surface px-3 py-2.5 font-mono text-sm leading-relaxed text-foreground outline-none transition focus:border-accent disabled:opacity-50"
             />
-            <p className="mt-1 text-right text-xs text-muted">
-              {transcript.length.toLocaleString("es-ES")} caracteres
-            </p>
+            <div className="mt-1 flex items-start justify-between gap-3">
+              <p className="text-xs text-muted">
+                Consejo: si la transcripción incluye marcas de tiempo (p.ej.{" "}
+                <span className="font-mono">[00:12]</span> o{" "}
+                <span className="font-mono">00:12</span>), el informe indicará el
+                minuto:segundo exacto de cada fallo. Si no, citará la frase textual.
+              </p>
+              <p className="shrink-0 text-xs text-muted">
+                {transcript.length.toLocaleString("es-ES")} caracteres
+              </p>
+            </div>
           </div>
 
           {error && (

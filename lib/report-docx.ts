@@ -12,7 +12,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import { CallAnalysis } from "./analysis";
+import { CallAnalysis, Hallazgo } from "./analysis";
 
 // Ancho útil de la página (A4, márgenes ~1000 dxa a cada lado).
 const CONTENT_WIDTH = 9700;
@@ -104,6 +104,41 @@ function bullet(text: string, color = DARK): Paragraph {
     spacing: { after: 50 },
     children: [new TextRun({ text, size: 19, color })],
   });
+}
+
+function ts(momento?: string): string {
+  return momento && momento.trim() ? `[${momento.trim()}] ` : "";
+}
+
+// Línea con la cita textual de la llamada (en cursiva, sangrada).
+function citaLine(cita?: string): Paragraph | null {
+  if (!cita || !cita.trim()) return null;
+  return new Paragraph({
+    indent: { left: 200 },
+    spacing: { after: 60 },
+    children: [
+      new TextRun({ text: `“${cita.trim()}”`, italics: true, size: 17, color: MUTED }),
+    ],
+  });
+}
+
+// Viñeta de hallazgo: [mm:ss] detalle + cita textual debajo.
+function hallazgoBullet(h: Hallazgo): Paragraph[] {
+  const out: Paragraph[] = [
+    new Paragraph({
+      bullet: { level: 0 },
+      spacing: { after: h.cita?.trim() ? 20 : 50 },
+      children: [
+        ...(ts(h.momento)
+          ? [new TextRun({ text: ts(h.momento), bold: true, size: 18, color: ACCENT })]
+          : []),
+        new TextRun({ text: h.detalle || "—", size: 18, color: DARK }),
+      ],
+    }),
+  ];
+  const c = citaLine(h.cita);
+  if (c) out.push(c);
+  return out;
 }
 
 function spacer(size = 80): Paragraph {
@@ -281,23 +316,27 @@ export async function buildReportDocx(
   pushSection(children, "Prioridades 80/20 · lo que más mejora la llamada");
   if (analysis.prioridades.length) {
     analysis.prioridades.forEach((p, i) => {
-      children.push(
-        card([
-          new Paragraph({
-            spacing: { after: 60 },
-            children: [
-              new TextRun({
-                text: `${i + 1}. ${p.titulo}`,
-                bold: true,
-                size: 22,
-                color: DARK,
-              }),
-            ],
-          }),
-          line("Por qué:", p.porque),
-          line("Acción:", p.accion, GREEN),
-        ], ACCENT_BG)
-      );
+      const paras: Paragraph[] = [
+        new Paragraph({
+          spacing: { after: 60 },
+          children: [
+            ...(ts(p.momento)
+              ? [new TextRun({ text: ts(p.momento), bold: true, size: 20, color: GREEN })]
+              : []),
+            new TextRun({
+              text: `${i + 1}. ${p.titulo}`,
+              bold: true,
+              size: 22,
+              color: DARK,
+            }),
+          ],
+        }),
+        line("Por qué:", p.porque),
+        line("Acción:", p.accion, GREEN),
+      ];
+      const c = citaLine(p.cita);
+      if (c) paras.push(c);
+      children.push(card(paras, ACCENT_BG));
       children.push(spacer());
     });
   } else {
@@ -306,7 +345,7 @@ export async function buildReportDocx(
 
   // ---- Errores por fase (3 columnas) ----
   pushSection(children, "Errores por fase");
-  const phaseCell = (titulo: string, items: string[]) =>
+  const phaseCell = (titulo: string, items: Hallazgo[]) =>
     new TableCell({
       width: { size: 3233, type: WidthType.DXA },
       shading: { type: ShadingType.CLEAR, color: "auto", fill: CARD_BG },
@@ -319,7 +358,7 @@ export async function buildReportDocx(
           ],
         }),
         ...(items.length
-          ? items.map((t) => bullet(t))
+          ? items.flatMap((h) => hallazgoBullet(h))
           : [emptyNote()]),
       ],
     });
@@ -349,19 +388,23 @@ export async function buildReportDocx(
   pushSection(children, "Rebate de objeciones");
   if (analysis.rebateObjeciones.length) {
     analysis.rebateObjeciones.forEach((o) => {
-      children.push(
-        card([
-          new Paragraph({
-            spacing: { after: 60 },
-            children: [
-              new TextRun({ text: "Objeción: ", bold: true, size: 19, color: DARK }),
-              new TextRun({ text: o.objecion, size: 19, color: DARK, italics: true }),
-            ],
-          }),
-          line("✗ Cómo se manejó:", o.manejoActual, RED, MUTED),
-          line("✓ Rebate recomendado:", o.rebateRecomendado, GREEN, DARK),
-        ])
-      );
+      const paras: Paragraph[] = [
+        new Paragraph({
+          spacing: { after: 60 },
+          children: [
+            ...(ts(o.momento)
+              ? [new TextRun({ text: ts(o.momento), bold: true, size: 18, color: ACCENT })]
+              : []),
+            new TextRun({ text: "Objeción: ", bold: true, size: 19, color: DARK }),
+            new TextRun({ text: o.objecion, size: 19, color: DARK, italics: true }),
+          ],
+        }),
+      ];
+      const c = citaLine(o.cita);
+      if (c) paras.push(c);
+      paras.push(line("✗ Cómo se manejó:", o.manejoActual, RED, MUTED));
+      paras.push(line("✓ Rebate recomendado:", o.rebateRecomendado, GREEN, DARK));
+      children.push(card(paras));
       children.push(spacer());
     });
   } else {
@@ -372,26 +415,29 @@ export async function buildReportDocx(
   pushSection(children, "Red flags · oportunidades de mejora");
   if (analysis.redFlags.length) {
     analysis.redFlags.forEach((r) => {
-      children.push(
-        card(
-          [
-            new Paragraph({
-              spacing: { after: 40 },
-              children: [
-                new TextRun({ text: "⚑ ", bold: true, size: 20, color: RED }),
-                new TextRun({ text: r.flag, bold: true, size: 19, color: RED }),
-              ],
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({ text: "→ ", size: 18, color: MUTED }),
-                new TextRun({ text: r.oportunidad, size: 18, color: DARK }),
-              ],
-            }),
+      const paras: Paragraph[] = [
+        new Paragraph({
+          spacing: { after: 40 },
+          children: [
+            new TextRun({ text: "⚑ ", bold: true, size: 20, color: RED }),
+            ...(ts(r.momento)
+              ? [new TextRun({ text: ts(r.momento), bold: true, size: 18, color: RED })]
+              : []),
+            new TextRun({ text: r.flag, bold: true, size: 19, color: RED }),
           ],
-          RED_BG
-        )
+        }),
+      ];
+      const c = citaLine(r.cita);
+      if (c) paras.push(c);
+      paras.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "→ ", size: 18, color: MUTED }),
+            new TextRun({ text: r.oportunidad, size: 18, color: DARK }),
+          ],
+        })
       );
+      children.push(card(paras, RED_BG));
       children.push(spacer(60));
     });
   } else {

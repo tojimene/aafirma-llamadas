@@ -10,6 +10,7 @@
     "seed-user": "node scripts/seed-user.mjs"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
     "@supabase/supabase-js": "^2.106.2",
     "bcryptjs": "^3.0.3",
     "docx": "^9.7.1",

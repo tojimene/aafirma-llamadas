@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Estos paquetes generan documentos en el servidor y no deben empaquetarse.
+  serverExternalPackages: ["@react-pdf/renderer"],
 };
 
 export default nextConfig;

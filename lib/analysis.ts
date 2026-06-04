@@ -10,22 +10,37 @@ export type CustomSection = {
   contenido: string;
 };
 
+// Hallazgo con localización temporal en la llamada.
+// momento: "mm:ss" si la transcripción trae marcas de tiempo; vacío si no.
+// cita: frase textual exacta de la transcripción para localizar el momento.
+export type Hallazgo = {
+  momento: string;
+  cita: string;
+  detalle: string;
+};
+
 // Prioridad 80/20: una de las pocas cosas con mayor impacto en mejorar la llamada.
 export type Prioridad = {
   titulo: string;
   porque: string;
   accion: string;
+  momento: string;
+  cita: string;
 };
 
 export type RedFlag = {
   flag: string;
   oportunidad: string;
+  momento: string;
+  cita: string;
 };
 
 export type RebateObjecion = {
   objecion: string;
   manejoActual: string;
   rebateRecomendado: string;
+  momento: string;
+  cita: string;
 };
 
 export type CallAnalysis = {
@@ -36,10 +51,10 @@ export type CallAnalysis = {
   prioridades: Prioridad[];
   // Señales de riesgo que son oportunidades de mejora.
   redFlags: RedFlag[];
-  // Errores por fase clave.
-  erroresSondeo: string[];
-  erroresPitch: string[];
-  erroresObjeciones: string[];
+  // Errores por fase clave (con momento y cita textual).
+  erroresSondeo: Hallazgo[];
+  erroresPitch: Hallazgo[];
+  erroresObjeciones: Hallazgo[];
   // Rebate de objeciones (prioridad de la firma).
   rebateObjeciones: RebateObjecion[];
   // Secciones que siguen la "estructura del informe" definida por la firma.
@@ -58,6 +73,15 @@ PLAYBOOK DE LA FIRMA (criterios que SIEMPRE debes evaluar):
 3. COSTE DE LA INACCIÓN vs COSTE DEL ACCESO: el asesor debe posicionar que NO actuar sale más caro: si el cliente no inicia ahora, sus deudas crecen, se expone a embargos y resolverlo después es más difícil y costoso. El coste del servicio se justifica frente al coste de no hacer nada.
 4. SONDEO: descubrir bien la situación (monto de deuda, entidades, cuota, atraso, impacto emocional) antes de proponer.
 5. PITCH: presentar la solución (protección legal de la Ley Concursal, autoridad de la firma) conectada a lo descubierto, sin hablar de más.
+
+MARCAS DE TIEMPO Y LOCALIZACIÓN (OBLIGATORIO):
+- Para CADA hallazgo (prioridad, error de fase, red flag y objeción) indica DÓNDE ocurre en la llamada.
+- Si la transcripción incluye marcas de tiempo (p.ej. [00:12], 00:12, 1:23, 12:34, "min 5"),
+  copia en el campo "momento" el minuto:segundo EXACTO en formato mm:ss (o hh:mm:ss si la llamada es larga).
+- Si la transcripción NO trae marcas de tiempo, deja "momento" como "" (cadena vacía).
+- En "cita" copia SIEMPRE la frase textual EXACTA de la transcripción donde ocurre el hallazgo
+  (lo más corta posible pero suficiente para localizarla). Nunca la dejes vacía.
+- NUNCA inventes una marca de tiempo que no aparezca literalmente en la transcripción.
 
 Reglas:
 - Sé concreto y cita momentos/frases reales de la llamada para justificar cada punto.
@@ -98,17 +122,18 @@ TRANSCRIPCIÓN DE LA LLAMADA A ANALIZAR:
 ${transcript}
 ==============================
 
-Analiza la llamada y responde con un JSON con EXACTAMENTE esta forma:
+Analiza la llamada y responde con un JSON con EXACTAMENTE esta forma.
+RECUERDA: "momento" = mm:ss exacto si hay marcas de tiempo, si no "". "cita" = frase textual EXACTA de la llamada (nunca vacía).
 {
   "resumen": "string (2-3 frases: qué pasó y dónde se ganó o perdió la venta)",
   "puntuacionGlobal": number,
   "resultadoProbable": "string corto (p.ej. 'Alta probabilidad de cierre', 'Necesita seguimiento', 'Perdida')",
-  "prioridades": [{"titulo": "la mejora más importante", "porque": "por qué es lo que más impacta", "accion": "qué hacer exactamente la próxima vez"}],
-  "redFlags": [{"flag": "señal de riesgo detectada en la llamada", "oportunidad": "cómo convertirla en mejora"}],
-  "erroresSondeo": ["errores concretos en la fase de sondeo/descubrimiento"],
-  "erroresPitch": ["errores concretos en la fase de pitch/propuesta"],
-  "erroresObjeciones": ["errores concretos en el manejo y rebate de objeciones"],
-  "rebateObjeciones": [{"objecion": "objeción del cliente", "manejoActual": "cómo la manejó el asesor", "rebateRecomendado": "cómo debió rebatirla según el playbook"}],
+  "prioridades": [{"titulo": "la mejora más importante", "porque": "por qué es lo que más impacta", "accion": "qué hacer exactamente la próxima vez", "momento": "mm:ss o ''", "cita": "frase textual exacta del momento clave"}],
+  "redFlags": [{"flag": "señal de riesgo detectada en la llamada", "oportunidad": "cómo convertirla en mejora", "momento": "mm:ss o ''", "cita": "frase textual exacta"}],
+  "erroresSondeo": [{"momento": "mm:ss o ''", "cita": "frase textual exacta donde ocurre", "detalle": "qué falló y por qué, en la fase de sondeo/descubrimiento"}],
+  "erroresPitch": [{"momento": "mm:ss o ''", "cita": "frase textual exacta donde ocurre", "detalle": "qué falló y por qué, en la fase de pitch/propuesta"}],
+  "erroresObjeciones": [{"momento": "mm:ss o ''", "cita": "frase textual exacta donde ocurre", "detalle": "qué falló y por qué, en el manejo y rebate de objeciones"}],
+  "rebateObjeciones": [{"objecion": "objeción del cliente", "manejoActual": "cómo la manejó el asesor", "rebateRecomendado": "cómo debió rebatirla según el playbook", "momento": "mm:ss o ''", "cita": "frase textual exacta de la objeción"}],
   "seccionesPersonalizadas": ${seccionesSpec}
 }
 
@@ -118,6 +143,29 @@ Presta atención especial al rebate de objeciones, al debate de precio con estru
 
 function asArray<T>(v: unknown): T[] {
   return Array.isArray(v) ? (v as T[]) : [];
+}
+
+function str(v: unknown): string {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
+// Convierte una lista a Hallazgo[], aceptando tanto objetos {momento,cita,detalle}
+// como strings sueltos (formato antiguo del modelo).
+function toHallazgos(v: unknown): Hallazgo[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((item) => {
+      if (typeof item === "string") {
+        return { momento: "", cita: "", detalle: item };
+      }
+      const o = (item ?? {}) as Record<string, unknown>;
+      return {
+        momento: str(o.momento),
+        cita: str(o.cita),
+        detalle: str(o.detalle ?? o.descripcion ?? o.error ?? o.texto),
+      };
+    })
+    .filter((h) => h.detalle.trim() || h.cita.trim());
 }
 
 function safeParse(raw: string): CallAnalysis {
@@ -133,14 +181,35 @@ function safeParse(raw: string): CallAnalysis {
     resumen: parsed.resumen ?? "",
     puntuacionGlobal: Number(parsed.puntuacionGlobal ?? 0),
     resultadoProbable: parsed.resultadoProbable ?? "No determinado",
-    prioridades: asArray<Prioridad>(parsed.prioridades).filter((p) => p?.titulo),
-    redFlags: asArray<RedFlag>(parsed.redFlags).filter((r) => r?.flag),
-    erroresSondeo: asArray<string>(parsed.erroresSondeo),
-    erroresPitch: asArray<string>(parsed.erroresPitch),
-    erroresObjeciones: asArray<string>(parsed.erroresObjeciones),
-    rebateObjeciones: asArray<RebateObjecion>(parsed.rebateObjeciones).filter(
-      (o) => o?.objecion
-    ),
+    prioridades: asArray<Record<string, unknown>>(parsed.prioridades)
+      .filter((p) => p?.titulo)
+      .map((p) => ({
+        titulo: str(p.titulo),
+        porque: str(p.porque),
+        accion: str(p.accion),
+        momento: str(p.momento),
+        cita: str(p.cita),
+      })),
+    redFlags: asArray<Record<string, unknown>>(parsed.redFlags)
+      .filter((r) => r?.flag)
+      .map((r) => ({
+        flag: str(r.flag),
+        oportunidad: str(r.oportunidad),
+        momento: str(r.momento),
+        cita: str(r.cita),
+      })),
+    erroresSondeo: toHallazgos(parsed.erroresSondeo),
+    erroresPitch: toHallazgos(parsed.erroresPitch),
+    erroresObjeciones: toHallazgos(parsed.erroresObjeciones),
+    rebateObjeciones: asArray<Record<string, unknown>>(parsed.rebateObjeciones)
+      .filter((o) => o?.objecion)
+      .map((o) => ({
+        objecion: str(o.objecion),
+        manejoActual: str(o.manejoActual),
+        rebateRecomendado: str(o.rebateRecomendado),
+        momento: str(o.momento),
+        cita: str(o.cita),
+      })),
     seccionesPersonalizadas: asArray<CustomSection>(
       parsed.seccionesPersonalizadas
     ).filter((s) => s?.titulo),

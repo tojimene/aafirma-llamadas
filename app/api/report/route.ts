@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { buildReportDocx } from "@/lib/report-docx";
+import { buildReportPdf } from "@/lib/report-pdf";
 import type { CallAnalysis } from "@/lib/analysis";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 function slugify(text: string): string {
   return (
@@ -26,22 +30,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
-    const { title, analysis } = await req.json();
+    const { title, analysis, format } = await req.json();
     if (!analysis)
       return NextResponse.json({ error: "Falta el análisis." }, { status: 400 });
 
-    const buffer = await buildReportDocx(analysis as CallAnalysis, {
+    const isPdf = format === "pdf";
+    const meta = {
       title: title || "Informe de llamada",
       analystName: session.user.name ?? undefined,
       date: new Date(),
-    });
+    };
 
-    const filename = `informe-${slugify(title || "llamada")}.docx`;
+    const buffer = isPdf
+      ? await buildReportPdf(analysis as CallAnalysis, meta)
+      : await buildReportDocx(analysis as CallAnalysis, meta);
+
+    const ext = isPdf ? "pdf" : "docx";
+    const filename = `informe-${slugify(title || "llamada")}.${ext}`;
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Type": isPdf ? "application/pdf" : DOCX_MIME,
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });

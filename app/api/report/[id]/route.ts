@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { buildReportDocx } from "@/lib/report-docx";
+import { buildReportPdf } from "@/lib/report-pdf";
 import { getServiceClient } from "@/lib/supabase";
 import type { CallAnalysis } from "@/lib/analysis";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 function slugify(text: string): string {
   return text
@@ -18,7 +22,7 @@ function slugify(text: string): string {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -26,6 +30,7 @@ export async function GET(
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
+  const isPdf = req.nextUrl.searchParams.get("format") === "pdf";
 
   try {
     const supabase = getServiceClient();
@@ -47,18 +52,21 @@ export async function GET(
       session.user.name ??
       undefined;
 
-    const buffer = await buildReportDocx(call.analysis as CallAnalysis, {
+    const meta = {
       title: call.title,
       analystName,
       date: new Date(call.created_at),
-    });
+    };
+    const buffer = isPdf
+      ? await buildReportPdf(call.analysis as CallAnalysis, meta)
+      : await buildReportDocx(call.analysis as CallAnalysis, meta);
 
-    const filename = `informe-${slugify(call.title)}.docx`;
+    const ext = isPdf ? "pdf" : "docx";
+    const filename = `informe-${slugify(call.title)}.${ext}`;
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Type": isPdf ? "application/pdf" : DOCX_MIME,
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
