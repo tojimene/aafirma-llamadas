@@ -223,14 +223,6 @@ export default function ConocimientoPage() {
               <label className="text-xs font-medium text-muted">
                 {isTemplateType ? "Estructura / secciones" : "Contenido"}
               </label>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isExtracting}
-                className="text-xs text-accent hover:underline disabled:opacity-50"
-              >
-                {isExtracting ? "Leyendo…" : "+ Subir archivo"}
-              </button>
               <input
                 ref={fileInputRef}
                 type="file"
